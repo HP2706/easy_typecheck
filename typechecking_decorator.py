@@ -1,4 +1,5 @@
-from typing import Dict, Type, List, Iterable, get_args, get_origin, Any, TypeVar, Protocol, Awaitable, Callable, Union, Tuple, Optional, runtime_checkable
+from typing import Dict, Type, get_args, get_origin, Any, Union
+import typing as tp
 from collections import abc
 from functools import wraps
 import inspect
@@ -6,8 +7,8 @@ import asyncio
 
 def validate_data_structure(data, expected_type: Type):
     origin = get_origin(expected_type)
-    print("origin", origin, "expected_type", expected_type)
-    if origin is Union:
+
+    if origin is tp.Union:
         # Check if data matches any of the unioned types entirely
         return any(validate_data_structure(data, arg) for arg in get_args(expected_type))
     elif origin is dict:
@@ -20,12 +21,38 @@ def validate_data_structure(data, expected_type: Type):
     elif origin is abc.Iterable:
         item_type = get_args(expected_type)[0]
         return all(validate_data_structure(item, item_type) for item in data)
-    
+
     elif origin is abc.Awaitable:
         return validate_data_structure(data, get_args(expected_type)[0])
 
     elif origin is abc.Callable:
         return check_callable(data, expected_type)
+
+    elif origin in [tp.Generic, tp.Protocol, tp.TypeGuard]:
+        return validate_data_structure(data, get_args(expected_type)[0])
+    
+    elif isinstance(expected_type, tp._TypedDictMeta):
+        required_keys = set(expected_type.__required_keys__)
+        optional_keys = set(expected_type.__optional_keys__)
+
+        if not all(key in data for key in required_keys):
+            return False  # Check if all required keys are present in the data
+
+        all_keys = required_keys.union(optional_keys)
+        if not all(key in all_keys for key in data.keys()):
+            return False  # Check if there are no extra keys in the data
+
+        # Check if the types of the values match the expected types
+        type_hints = tp.get_type_hints(expected_type)
+        return all(validate_data_structure(data[key], type_hints[key]) for key in data if key in type_hints)
+
+    if isinstance(expected_type, tp.TypeVar):
+        if expected_type.__bound__ is not None:
+            return validate_data_structure(data, expected_type.__bound__)
+        return True #TODO WACTH OUT FOR THIS
+
+    elif origin is tp.Literal:
+        return any(data == arg for arg in get_args(expected_type))
 
     elif origin in [list, set, tuple]:
         item_type = get_args(expected_type)[0]
@@ -34,9 +61,7 @@ def validate_data_structure(data, expected_type: Type):
         # Ensure all elements in the iterable match the specified item type
         return all(validate_data_structure(item, item_type) for item in data)
     else:
-        if isinstance(expected_type, TypeVar):
-            print("TypeVar", data, expected_type.__bound__)
-            return validate_data_structure(data, expected_type.__bound__)
+        
         return isinstance(data, expected_type)
     
 def check_callable(data, expected_type: Type) -> bool:
@@ -83,7 +108,6 @@ def typecheck(func):
         all_args.update(dict(zip(func.__code__.co_varnames, args)))
 
         for arg, expected_type in annotations.items():
-            print("arg", arg, "expected_type", expected_type, type(expected_type))
             if not validate_data_structure(all_args[arg], expected_type):
                 raise TypeError(f"Expected type {expected_type} for argument {arg}, got {type(all_args[arg])}")
         result = func(*args, **kwargs)

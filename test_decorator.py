@@ -1,7 +1,7 @@
 import pytest
 from .typechecking_decorator import typecheck
-from typing import Union, Iterable, Tuple, Callable, List, Dict, Awaitable, Type, Any, Protocol, Optional, runtime_checkable, TypeVar
-from pydantic import BaseModel
+from typing import Union, Iterable, Tuple, Callable,  Awaitable, TypeVar
+import typing as tp
 import asyncio
 # Test function with correct types
 @typecheck
@@ -41,15 +41,33 @@ def call_func(func: Callable[[int, int], int], a: int, b: int) -> int:
 async def async_call_func(func: Awaitable[Callable[[int, int], int]], a: int, b: int) -> int:
     return await func(a, b)
 
-T = TypeVar('T', bound=BaseModel)
+T = TypeVar('T', bound=float)
 
 @typecheck
 def typevar_func(a: T, b: T) -> T:
     return a 
 
 
-class User(BaseModel):
-    name: str
+
+
+class Bla(tp._TypedDict):
+    a: tp.List[int]
+    b: str
+
+@typecheck
+def check_typed_dict(data: Bla) -> tp.List[int]:
+    return data.get("a")
+
+def test_check_typed_dict():
+    # Create an instance of Bla with correct types
+    bla_instance = Bla(a=[1, 2, 3], b="test")
+    # Test the function with the instance
+    assert check_typed_dict(bla_instance) == [1, 2, 3]
+
+
+def test_test_typed_dict_type_error():
+    with pytest.raises(TypeError):
+        check_typed_dict(Bla(a="1", b="test"))
 
 async def async_add_numbers(a: int, b: int) -> int:
     return a + b
@@ -77,18 +95,16 @@ def test_async_call_func_type_error():
     with pytest.raises(TypeError):
         asyncio.run(async_call_func(wrong_func, 1, 2))
 
-
-
 # Test cases
 def test_add_numbers_success():
-    user1 = User(name="Alice")
-    user2 = User(name="Bob")
+    user1 = 1.0
+    user2 = 2.0
     result = typevar_func(user1, user2)
-    assert isinstance(result, User)
+    assert isinstance(result, float)
 
 def test_add_numbers_type_mismatch():
-    user = User(name="Charlie")
-    admin = "Parker"
+    user = 1.0
+    admin = "Charlie Parker"
     with pytest.raises(TypeError):
         typevar_func(user, admin)
 
