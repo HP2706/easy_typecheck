@@ -16,7 +16,6 @@ def validate_data_structure(data, expected_type: Type):
             for k, v in data.items()
         )
     elif origin is abc.Iterable:
-        print("origin is Iterable")
         item_type = get_args(expected_type)[0]
         return all(validate_data_structure(item, item_type) for item in data)
     elif origin in [list, set, tuple]:
@@ -37,11 +36,18 @@ def typecheck(func):
         expected_return_type = annotations.pop('return', None)  # Remove the return type annotation
         all_args = kwargs.copy()
         all_args.update(dict(zip(func.__code__.co_varnames, args)))
+        print(f"all_args: {all_args}")
         
         for arg, expected_type in annotations.items():
-            validate_data_structure(all_args[arg], expected_type)
+            print(f"arg: {arg}, expected_type: {expected_type}")
+            if not validate_data_structure(all_args[arg], expected_type):
+                raise TypeError(f"Expected type {expected_type} for argument {arg}, got {type(all_args[arg])}")
         result = func(*args, **kwargs)
-        if expected_return_type is not None and not isinstance(result, expected_return_type):
-            raise TypeError(f"Expected return type {expected_return_type}, got {type(result)}")
+        if expected_return_type is not None:
+            if not validate_data_structure(result, expected_return_type):
+                raise TypeError(f"Expected return type {expected_return_type}, got {type(result)}")
         return result
     return wrapper
+
+
+
