@@ -1,6 +1,7 @@
 import pytest
 from .typechecking_decorator import typecheck
-from typing import Union, Iterable, Tuple
+from typing import Union, Iterable, Tuple, Callable, List, Dict, Awaitable, Type, Any, Protocol, Optional, runtime_checkable
+import asyncio
 # Test function with correct types
 @typecheck
 def add_numbers(a: int, b: int) -> int:
@@ -30,6 +31,43 @@ def get_coordinates() -> Tuple[int, int]:
 @typecheck
 def multiply_numbers(a: int, b: str) -> int:
     return a * int(b)
+
+@typecheck
+def call_func(func: Callable[[int, int], int], a: int, b: int) -> int:
+    return func(a, b)
+
+@typecheck
+async def async_call_func(func: Awaitable[Callable[[int, int], int]], a: int, b: int) -> int:
+    return await func(a, b)
+
+async def async_add_numbers(a: int, b: int) -> int:
+    return a + b
+
+def add_numbers(a: int, b: int) -> int:
+    return a + b
+
+
+def test_call_func():
+    assert call_func(add_numbers, 1, 2) == 3
+
+def test_call_func_type_error():
+    def wrong_func(a: int, b: str) -> int:
+        return a + int(b)
+
+    with pytest.raises(TypeError):
+        call_func(wrong_func, 1, 2)
+
+def test_async_call_func():
+    assert asyncio.run(async_call_func(async_add_numbers, 1, 2)) == 3
+
+def test_async_call_func_type_error():
+    async def wrong_func(a: int, b: str) -> int:
+        return a + int(b)
+
+    with pytest.raises(TypeError):
+        asyncio.run(async_call_func(wrong_func, 1, 2))
+
+
 
 # Test cases
 def test_add_numbers():

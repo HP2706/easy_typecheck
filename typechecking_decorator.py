@@ -2,9 +2,11 @@ from typing import Dict, Type, List, Iterable, get_args, get_origin, Any, Protoc
 from collections import abc
 from functools import wraps
 import inspect
+import asyncio
 
 def validate_data_structure(data, expected_type: Type):
     origin = get_origin(expected_type)
+    print(origin)
     if origin is Union:
         # Check if data matches any of the unioned types entirely
         return any(validate_data_structure(data, arg) for arg in get_args(expected_type))
@@ -19,6 +21,9 @@ def validate_data_structure(data, expected_type: Type):
         item_type = get_args(expected_type)[0]
         return all(validate_data_structure(item, item_type) for item in data)
     
+    elif origin is abc.Awaitable:
+        return validate_data_structure(data, get_args(expected_type)[0])
+
     elif origin is abc.Callable:
         return check_callable(data, expected_type)
 
@@ -52,12 +57,28 @@ def check_callable(data, expected_type: Type) -> bool:
 
 def typecheck(func):
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    async def async_wrapper(*args, **kwargs):
         annotations = func.__annotations__
-        expected_return_type = annotations.pop('return', None)  # Remove the return type annotation
+        expected_return_type = annotations.pop('return', None)
         all_args = kwargs.copy()
         all_args.update(dict(zip(func.__code__.co_varnames, args)))
-        
+
+        for arg, expected_type in annotations.items():
+            if not validate_data_structure(all_args[arg], expected_type):
+                raise TypeError(f"Expected type {expected_type} for argument {arg}, got {type(all_args[arg])}")
+        result = await func(*args, **kwargs)
+        if expected_return_type is not None:
+            if not validate_data_structure(result, expected_return_type):
+                raise TypeError(f"Expected return type {expected_return_type}, got {type(result)}")
+        return result
+
+    @wraps(func)
+    def sync_wrapper(*args, **kwargs):
+        annotations = func.__annotations__
+        expected_return_type = annotations.pop('return', None)
+        all_args = kwargs.copy()
+        all_args.update(dict(zip(func.__code__.co_varnames, args)))
+
         for arg, expected_type in annotations.items():
             if not validate_data_structure(all_args[arg], expected_type):
                 raise TypeError(f"Expected type {expected_type} for argument {arg}, got {type(all_args[arg])}")
@@ -66,6 +87,9 @@ def typecheck(func):
             if not validate_data_structure(result, expected_return_type):
                 raise TypeError(f"Expected return type {expected_return_type}, got {type(result)}")
         return result
-    return wrapper
 
+    if asyncio.iscoroutinefunction(func):
+        return async_wrapper
+    else:
+        return sync_wrapper
 
