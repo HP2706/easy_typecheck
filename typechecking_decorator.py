@@ -1,6 +1,6 @@
 from typing import Dict, Type, List, Iterable, get_args, get_origin, Any, Protocol, Awaitable, Callable, Union, Tuple, Optional
 from collections import abc
-import torch
+from functools import wraps
 
 def validate_data_structure(data, expected_type: Type):
     origin = get_origin(expected_type)
@@ -28,3 +28,20 @@ def validate_data_structure(data, expected_type: Type):
     else:
         # Fallback for simple type checks
         return isinstance(data, expected_type)
+    
+
+def typecheck(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        annotations = func.__annotations__
+        expected_return_type = annotations.pop('return', None)  # Remove the return type annotation
+        all_args = kwargs.copy()
+        all_args.update(dict(zip(func.__code__.co_varnames, args)))
+        
+        for arg, expected_type in annotations.items():
+            validate_data_structure(all_args[arg], expected_type)
+        result = func(*args, **kwargs)
+        if expected_return_type is not None and not isinstance(result, expected_return_type):
+            raise TypeError(f"Expected return type {expected_return_type}, got {type(result)}")
+        return result
+    return wrapper
