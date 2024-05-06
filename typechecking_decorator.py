@@ -1,4 +1,4 @@
-from typing import Dict, Type, List, Iterable, get_args, get_origin, Any, Protocol, Awaitable, Callable, Union, Tuple, Optional, runtime_checkable
+from typing import Dict, Type, List, Iterable, get_args, get_origin, Any, TypeVar, Protocol, Awaitable, Callable, Union, Tuple, Optional, runtime_checkable
 from collections import abc
 from functools import wraps
 import inspect
@@ -6,7 +6,7 @@ import asyncio
 
 def validate_data_structure(data, expected_type: Type):
     origin = get_origin(expected_type)
-    print(origin)
+    print("origin", origin, "expected_type", expected_type)
     if origin is Union:
         # Check if data matches any of the unioned types entirely
         return any(validate_data_structure(data, arg) for arg in get_args(expected_type))
@@ -34,6 +34,9 @@ def validate_data_structure(data, expected_type: Type):
         # Ensure all elements in the iterable match the specified item type
         return all(validate_data_structure(item, item_type) for item in data)
     else:
+        if isinstance(expected_type, TypeVar):
+            print("TypeVar", data, expected_type.__bound__)
+            return validate_data_structure(data, expected_type.__bound__)
         return isinstance(data, expected_type)
     
 def check_callable(data, expected_type: Type) -> bool:
@@ -80,6 +83,7 @@ def typecheck(func):
         all_args.update(dict(zip(func.__code__.co_varnames, args)))
 
         for arg, expected_type in annotations.items():
+            print("arg", arg, "expected_type", expected_type, type(expected_type))
             if not validate_data_structure(all_args[arg], expected_type):
                 raise TypeError(f"Expected type {expected_type} for argument {arg}, got {type(all_args[arg])}")
         result = func(*args, **kwargs)

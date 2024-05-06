@@ -1,6 +1,7 @@
 import pytest
 from .typechecking_decorator import typecheck
-from typing import Union, Iterable, Tuple, Callable, List, Dict, Awaitable, Type, Any, Protocol, Optional, runtime_checkable
+from typing import Union, Iterable, Tuple, Callable, List, Dict, Awaitable, Type, Any, Protocol, Optional, runtime_checkable, TypeVar
+from pydantic import BaseModel
 import asyncio
 # Test function with correct types
 @typecheck
@@ -40,12 +41,21 @@ def call_func(func: Callable[[int, int], int], a: int, b: int) -> int:
 async def async_call_func(func: Awaitable[Callable[[int, int], int]], a: int, b: int) -> int:
     return await func(a, b)
 
+T = TypeVar('T', bound=BaseModel)
+
+@typecheck
+def typevar_func(a: T, b: T) -> T:
+    return a 
+
+
+class User(BaseModel):
+    name: str
+
 async def async_add_numbers(a: int, b: int) -> int:
     return a + b
 
 def add_numbers(a: int, b: int) -> int:
     return a + b
-
 
 def test_call_func():
     assert call_func(add_numbers, 1, 2) == 3
@@ -70,6 +80,18 @@ def test_async_call_func_type_error():
 
 
 # Test cases
+def test_add_numbers_success():
+    user1 = User(name="Alice")
+    user2 = User(name="Bob")
+    result = typevar_func(user1, user2)
+    assert isinstance(result, User)
+
+def test_add_numbers_type_mismatch():
+    user = User(name="Charlie")
+    admin = "Parker"
+    with pytest.raises(TypeError):
+        typevar_func(user, admin)
+
 def test_add_numbers():
     assert add_numbers(1, 2) == 3
 
