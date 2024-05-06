@@ -1,4 +1,4 @@
-from typing import Dict, Type, get_args, get_origin, Any, Union
+from typing import Type, get_args, get_origin, Any
 import typing as tp
 from collections import abc
 from functools import wraps
@@ -7,7 +7,7 @@ import asyncio
 
 def validate_data_structure(data, expected_type: Type):
     origin = get_origin(expected_type)
-
+    print(origin)
     if origin is tp.Union:
         # Check if data matches any of the unioned types entirely
         return any(validate_data_structure(data, arg) for arg in get_args(expected_type))
@@ -28,7 +28,7 @@ def validate_data_structure(data, expected_type: Type):
     elif origin is abc.Callable:
         return check_callable(data, expected_type)
 
-    elif origin in [tp.Generic, tp.Protocol, tp.TypeGuard]:
+    elif origin in [tp.Generic, tp.Protocol, tp.TypeGuard, tp.Annotated]:
         return validate_data_structure(data, get_args(expected_type)[0])
     
     elif isinstance(expected_type, tp._TypedDictMeta):
@@ -120,4 +120,5 @@ def typecheck(func):
         return async_wrapper
     else:
         return sync_wrapper
+
 
